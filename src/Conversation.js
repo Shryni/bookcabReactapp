@@ -1,30 +1,44 @@
 import React, { Component } from 'react';
+import ReactDOM from 'react-dom';
 import TextField from 'material-ui/TextField';
 import {List, ListItem} from 'material-ui/List';
 import Paper from 'material-ui/Paper';
-import AppBar from 'material-ui/AppBar';
+
 import ajax from 'superagent';
+import Notes from './Notes';
+import MuiThemeProvider from 'material-ui/styles/MuiThemeProvider';
+import AppBar, {FlexibleSpace, TabBar, ToolBar} from 'material-ui-scrolling-techniques/AppBar';
+import ScrollingTechniques from 'material-ui-scrolling-techniques/AppBar/ScrollingTechniques';
 
 export default class Conversation extends Component {
-	componentDidMount(){
-		localStorage.setItem('chatItems',JSON.stringify(this.state.chat));
-
+	componentWillMount(){
+		console.log('componentWillMount');
+		this.setState({chat: JSON.parse(localStorage.getItem('chatItems'))||[]});
+		
 	}
 
 	constructor(props)
 	{
+		console.log('constuctor');
 		super(props);
 		this.state = {
 			chat :[],
  			value : '',
 			index : 0,
+			show : false,
 		};
 		this.handleChange = this.handleChange.bind(this);
 		this.fetchOutput = this.fetchOutput.bind(this);
-		
+		this.storeInLocalStorage = this.storeInLocalStorage.bind(this);
 	}
 	
-	
+	storeInLocalStorage(newChat){
+		var chatHistory=JSON.parse(localStorage.getItem('chatItems') ) || [];
+		chatHistory.push(newChat);
+		localStorage.setItem('chatItems',JSON.stringify(chatHistory));
+		this.setState({chat: chatHistory});
+	}
+
 	handleChange(event){
 		var newMessage = event.target.value;
 		this.setState({value : newMessage});
@@ -33,7 +47,6 @@ export default class Conversation extends Component {
 	fetchOutput(event){
 
 		event.preventDefault();
-		var chatHistory = this.state.chat;
 		var newInput = this.state.value;
 		var i = this.state.index;
 		this.setState({index : i+1});
@@ -44,36 +57,52 @@ export default class Conversation extends Component {
 
 				if(response.body.topScoringIntent.intent === "None")
 				{
-					chatHistory.push({input : newInput , output : 'I didnt understand you'})
-					this.setState({chat : chatHistory});
+					// chatHistory.push({input : newInput , output : 'I didnt understand you'})
+					this.storeInLocalStorage({input : newInput , output : 'I am sorry, I dont understand! TRY with simple keywords'});
 					this.setState({value : ''});
+					
+				}
+				if(response.body.topScoringIntent.intent === "ToDoList")
+				{
+					if(response.body.dialog.status === "Finished")
+					{
+						this.storeInLocalStorage({input : newInput , output : 'Here is your list'});
+						this.setState({value: ''});
+						this.setState({show : true});
+						this.newRender();
+						
+					}
+					if(response.body.dialog.status ==="Question")
+					{
+					this.storeInLocalStorage({input : newInput , output : response.body.dialog.prompt});
+					this.setState({value : newInput});
+					
+					}
 					
 				}
 				if(response.body.topScoringIntent.intent === "Bookings")
 				{
 					if(response.body.dialog.status === "Finished")
 					{
-						chatHistory.push({input : newInput , output : "Your trip is booked. Have a safe Journey!"})
-						this.setState({chat : chatHistory});
+						this.storeInLocalStorage({input : newInput , output : "Your trip is booked. Have a safe Journey!"});
 						this.setState({value : ''});
 						
 					}
 					if(response.body.dialog.status === "Question")
 					{
-						chatHistory.push({input : newInput ,output : response.body.dialog.prompt});
-						this.setState({chat : chatHistory});
+						this.storeInLocalStorage({input : newInput ,output : response.body.dialog.prompt});
 						this.setState({value : newInput});
 					}
 				}
 				if(response.body.topScoringIntent.intent === "Greetings")
 				{
-					chatHistory.push({input : newInput, output :'Hello! What can I do for you?'});
-					this.setState({chat : chatHistory});
+					this.storeInLocalStorage({input : newInput, output :'Hello! What can I do for you?'});
 					this.setState({value : ''});
 
 				}
 				if(response.body.topScoringIntent.intent==="clear chat")
 					{
+					localStorage.setItem('chatItems',JSON.stringify(''));
 					this.setState({chat :[]});
 					this.setState({value : ''});
 					}
@@ -81,32 +110,33 @@ export default class Conversation extends Component {
 			}
 			else
 			{
-				chatHistory.push({input : newInput , output : 'Try again'})
-				this.setState({chat : chatHistory});
+				this.storeInLocalStorage({input : newInput , output : 'Try again'})
 				this.setState({value : ''});
 				
 			}
 
 		});
 	}
+	newRender(){
+		console.log('newRender');
+		ReactDOM.render(<Notes />,document.getElementById('more'));
+	}
 	render(){
-		//var arr =JSON.parse(localStorage.getItem('chatItems'));
-		
+		console.log('render');
 		const localChat = this.state.chat.map((item, i)=>
 		{
 			
 			return(
-				<div key={i}>
-				
+				<div key={i}>			
 				<List>
 				<Paper style={{background:'#c5f9d9'}}>
                 <ListItem 
-                 innerDivStyle={{marginLeft:300}}
+                 innerDivStyle={{textAlign:'right'}}
                  primaryText={item.input}/>
                  </Paper>
                  <Paper style={{background:'#ede5b4'}}>                 
                 <ListItem 
-                 innerDivStyle={{marginRight:300}}
+                 innerDivStyle={{textAlign:'left'}}
                  primaryText={item.output}/>
                  </Paper>                  
                 </List> 
@@ -116,7 +146,9 @@ export default class Conversation extends Component {
 
 		});
 		return(
-			<Paper style={{width:600}}>
+			<ScrollingTechniques>
+			<MuiThemeProvider>
+			<Paper >
 			<AppBar
     		title="Chat Window"
     		iconClassNameRight="muidocs-icon-navigation-expand-more"/>
@@ -133,6 +165,8 @@ export default class Conversation extends Component {
     		</form>
     		</div>
 			</Paper>
+			</MuiThemeProvider>
+			</ScrollingTechniques>
 			);
 	}
 }
